@@ -103,7 +103,7 @@ class CBLDM_algo:
     def __init__(self, length, time_in_seconds, len_delta, start):
         self.sum_delta = np.inf  # partition sum difference
         self.length = length
-        self.time_in_seconds = np.inf
+        self.time_in_seconds = time_in_seconds
         self.len_delta = len_delta  # partition cardinal difference
         self.start = start
         self.best = BinsKeepingContents(2)
