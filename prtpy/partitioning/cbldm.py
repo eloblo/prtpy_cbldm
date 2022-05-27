@@ -120,10 +120,11 @@ class CBLDM_algo:
         if time.perf_counter() - self.start >= self.time_in_seconds or self.opt:
             return
         if len(items) == 1:  # possible partition
-            if abs(len(items[0].bins[0]) - len(items[0].bins[1])) <= self.len_delta and abs(
-                    items[0].sums[0] - items[0].sums[1]) < self.sum_delta:
+            cur_sum_delta = abs(items[0].sums[0] - items[0].sums[1])
+            cur_len_delta = abs(len(items[0].bins[0]) - len(items[0].bins[1]))
+            if cur_len_delta <= self.len_delta and cur_sum_delta < self.sum_delta:
                 self.best = items[0]
-                self.sum_delta = abs(items[0].sums[0] - items[0].sums[1])
+                self.sum_delta = cur_sum_delta
                 if self.sum_delta == 0:
                     self.opt = True
                 return
