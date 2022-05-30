@@ -23,7 +23,7 @@ def cbldm(
         valueof: Callable[[Any], float] = lambda x: x,
         time_in_seconds: float = np.inf,
         partition_difference: int = sys.maxsize,
-        use_threads: bool = False
+        use_threads: bool = False   # allows to compute with 2 threads should be used only when items length > 24
 ) -> Bins:
     """
     >>> from prtpy.bins import BinsKeepingContents, BinsKeepingSums
