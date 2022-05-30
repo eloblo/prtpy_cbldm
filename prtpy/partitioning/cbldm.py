@@ -11,9 +11,10 @@ The algorithm runs until it finds the optimal partition, or it runs out of time.
 import sys
 from typing import Callable, List, Any
 import numpy as np
-from prtpy import outputtypes as out, objectives as obj, Bins, BinsKeepingContents
+from prtpy import Bins, BinsKeepingContents
 import time
 import math
+import threading
 
 
 def cbldm(
@@ -93,19 +94,26 @@ def cbldm(
         return bins
 
     normalised_items = []  # list of bins, each bin contain a sub partition
+    lock = threading.Lock()
     for i in sorted_items:
         b = BinsKeepingContents(2)
         b.set_valueof(valueof)
         b.add_item_to_bin(item=i, bin_index=1)
         normalised_items.append(b)
-    alg = CBLDM_algo(length=length, time_in_seconds=time_in_seconds, len_delta=partition_difference, start=start, val=valueof)
-    alg.part(normalised_items)
+    alg = CBLDM_algo(length=length, time_in_seconds=time_in_seconds, len_delta=partition_difference, start=start, val=valueof, lock=lock)
+    t1 = threading.Thread(target=alg.part, args=(normalised_items, True))
+    t2 = threading.Thread(target=alg.part, args=(normalised_items, False))
+    t1.start()
+    t2.start()
+    t1.join()
+    t2.join()
+    #alg.part(normalised_items)
     return alg.best
 
 
 class CBLDM_algo:
 
-    def __init__(self, length, time_in_seconds, len_delta, start, val):
+    def __init__(self, length, time_in_seconds, len_delta, start, val, lock):
         self.sum_delta = np.inf  # partition sum difference
         self.length = length
         self.time_in_seconds = time_in_seconds
@@ -115,19 +123,21 @@ class CBLDM_algo:
         self.best.add_item_to_bin(np.inf, 1)
         self.opt = False
         self.val = val
+        self.lock = lock
 
-    def part(self, items):
+    def part(self, items, direction):
         if time.perf_counter() - self.start >= self.time_in_seconds or self.opt:
             return
         if len(items) == 1:  # possible partition
             cur_sum_delta = abs(items[0].sums[0] - items[0].sums[1])
             cur_len_delta = abs(len(items[0].bins[0]) - len(items[0].bins[1]))
-            if cur_len_delta <= self.len_delta and cur_sum_delta < self.sum_delta:
-                self.best = items[0]
-                self.sum_delta = cur_sum_delta
-                if self.sum_delta == 0:
-                    self.opt = True
-                return
+            with self.lock:
+                if cur_len_delta <= self.len_delta and cur_sum_delta < self.sum_delta:
+                    self.best = items[0]
+                    self.sum_delta = cur_sum_delta
+                    if self.sum_delta == 0:
+                        self.opt = True
+                    return
         else:
             sum_xi = 0  # calculate the sum of the sum differences in items
             max_x = 0  # max sum difference
@@ -174,8 +184,14 @@ class CBLDM_algo:
 
             right.append(combine)
             left.append(split)
-            self.part(left)
-            self.part(right)
+            if direction:
+                self.part(left, direction)
+                if len(items) < self.length:
+                    self.part(right, direction)
+            else:
+                self.part(right, direction)
+                if len(items) < self.length:
+                    self.part(left, direction)
 
 
 if __name__ == "__main__":
