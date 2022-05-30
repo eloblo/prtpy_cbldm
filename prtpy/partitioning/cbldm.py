@@ -22,7 +22,8 @@ def cbldm(
         items: List[float],
         valueof: Callable[[Any], float] = lambda x: x,
         time_in_seconds: float = np.inf,
-        partition_difference: int = sys.maxsize
+        partition_difference: int = sys.maxsize,
+        use_threads: bool = False
 ) -> Bins:
     """
     >>> from prtpy.bins import BinsKeepingContents, BinsKeepingSums
@@ -101,18 +102,20 @@ def cbldm(
         b.add_item_to_bin(item=i, bin_index=1)
         normalised_items.append(b)
     alg = CBLDM_algo(length=length, time_in_seconds=time_in_seconds, len_delta=partition_difference, start=start, val=valueof, lock=lock)
-    t1 = threading.Thread(target=alg.part, args=(normalised_items, True))
-    t2 = threading.Thread(target=alg.part, args=(normalised_items, False))
-    t1.start()
-    t2.start()
-    t1.join()
-    t2.join()
-    #alg.part(normalised_items)
+
+    if use_threads:
+        t1 = threading.Thread(target=alg.part, args=(normalised_items, True))
+        t2 = threading.Thread(target=alg.part, args=(normalised_items, False))
+        t1.start()
+        t2.start()
+        t1.join()
+        t2.join()
+    else:
+        alg.part(normalised_items)
     return alg.best
 
 
 class CBLDM_algo:
-
     def __init__(self, length, time_in_seconds, len_delta, start, val, lock):
         self.sum_delta = np.inf  # partition sum difference
         self.length = length
@@ -125,7 +128,7 @@ class CBLDM_algo:
         self.val = val
         self.lock = lock
 
-    def part(self, items, direction):
+    def part(self, items, direction=None):
         if time.perf_counter() - self.start >= self.time_in_seconds or self.opt:
             return
         if len(items) == 1:  # possible partition
@@ -184,7 +187,10 @@ class CBLDM_algo:
 
             right.append(combine)
             left.append(split)
-            if direction:
+            if direction is None:  # no threads
+                self.part(left, direction)
+                self.part(right, direction)
+            elif direction:
                 self.part(left, direction)
                 if len(items) < self.length:
                     self.part(right, direction)
@@ -199,3 +205,16 @@ if __name__ == "__main__":
 
     (failures, tests) = doctest.testmod(report=True)
     print("{} failures, {} tests".format(failures, tests))
+
+    rng = np.random.default_rng(1)
+    items = rng.integers(1,1000, 25)
+
+    print("\nWithout threads:")
+    start = time.perf_counter()
+    result = cbldm(BinsKeepingContents(2), items=items, time_in_seconds=100, use_threads=False)
+    print(f"Time: {time.perf_counter()-start}. Result: {result}")
+
+    print("\nWith threads:")
+    start = time.perf_counter()
+    cbldm(BinsKeepingContents(2), items=items, time_in_seconds=100, use_threads=True)
+    print(f"Time: {time.perf_counter()-start}. Result: {result}")
